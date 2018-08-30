@@ -11,6 +11,7 @@ from rl.agents.a2c.runner import A2CRunner
 from rl.agents.a2c.agent import A2CAgent
 from rl.networks.fully_conv import FullyConv
 from rl.environment import SubprocVecEnv, make_sc2env, SingleEnv
+from pysc2.env.sc2_env import parse_agent_interface_format
 
 
 # Workaround for pysc2 flags
@@ -96,8 +97,9 @@ def main():
         map_name=args.map,
         step_mul=args.step_mul,
         game_steps_per_episode=0,
-        screen_size_px=size_px,
-        minimap_size_px=size_px)
+        agent_interface_format=parse_agent_interface_format(
+            feature_screen=size_px,
+            feature_minimap=size_px))
     vis_env_args = env_args.copy()
     vis_env_args['visualize'] = args.vis
     num_vis = min(args.envs, args.max_windows)
@@ -108,7 +110,9 @@ def main():
 
     envs = SubprocVecEnv(env_fns)
 
-    sess = tf.Session()
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    sess = tf.Session(config=config)
     summary_writer = tf.summary.FileWriter(summary_path)
 
     network_data_format = 'NHWC' if args.nhwc else 'NCHW'

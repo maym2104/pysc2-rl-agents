@@ -71,8 +71,8 @@ class Preprocessor():
     available_actions = np.zeros(NUM_FUNCTIONS, dtype=np.float32)
     available_actions[obs['available_actions']] = 1
 
-    screen = self._preprocess_spatial(obs['screen'])
-    minimap = self._preprocess_spatial(obs['minimap'])
+    screen = self._preprocess_spatial(obs['feature_screen'])
+    minimap = self._preprocess_spatial(obs['feature_minimap'])
 
     flat = np.concatenate([
         obs['player']])
@@ -85,4 +85,5 @@ class Preprocessor():
         'available_actions': available_actions}
 
   def _preprocess_spatial(self, spatial):
+    spatial = np.array(spatial)
     return np.transpose(spatial, [1, 2, 0])
