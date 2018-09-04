@@ -7,6 +7,8 @@ from pysc2.lib.actions import TYPES as ACTION_TYPES
 from rl.pre_processing import Preprocessor
 from rl.pre_processing import is_spatial_action, stack_ndarray_dicts
 
+import matplotlib.pyplot as plt
+
 
 class A2CRunner():
   def __init__(self,
@@ -190,3 +192,28 @@ def stack_and_flatten_actions(lst, axis=0):
   arg_ids = stack_ndarray_dicts(arg_dict_list, axis=axis)
   arg_ids = flatten_first_dims_dict(arg_ids)
   return (fn_id, arg_ids)
+
+def show(args):
+  screen_arg = args[ACTION_TYPES.screen][0].reshape((32, 32))
+  minimap_arg = args[ACTION_TYPES.minimap][0].reshape((32, 32))
+  screen2_arg = args[ACTION_TYPES.screen2][0].reshape((32, 32))
+  zeros = np.zeros((32, 32))
+
+  plt.figure(figsize=(8, 8))
+  plt.subplot(2, 2, 1)
+  plt.imshow(screen_arg)
+  plt.title("screen_arg")
+
+  plt.subplot(2, 2, 2)
+  plt.imshow(minimap_arg)
+  plt.title("minimap_arg")
+
+  plt.subplot(2, 2, 3)
+  plt.imshow(screen2_arg)
+  plt.title("screen2_arg")
+
+  plt.subplot(2, 2, 4)
+  plt.imshow(zeros)
+  plt.title('zeros ref')
+
+  plt.show()
