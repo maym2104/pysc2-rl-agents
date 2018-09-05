@@ -10,6 +10,7 @@ import tensorflow as tf
 from rl.agents.a2c.runner import A2CRunner
 from rl.agents.a2c.agent import A2CAgent
 from rl.networks.fully_conv import FullyConv
+from rl.networks.fully_conv_lstm import FullyConvLSTM
 from rl.environment import SubprocVecEnv, make_sc2env, SingleEnv
 from pysc2.env.sc2_env import parse_agent_interface_format
 
@@ -67,6 +68,8 @@ parser.add_argument('--save_dir', type=str, default=os.path.join('out','models')
                     help='root directory for checkpoint storage')
 parser.add_argument('--summary_dir', type=str, default=os.path.join('out','summary'),
                     help='root directory for summary storage')
+parser.add_argument('--use_lstm', action='store_true',
+                    help='use fullyConvLSTM network')
 
 args = parser.parse_args()
 # TODO write args to config file and store together with summaries (https://pypi.python.org/pypi/ConfigArgParse)
@@ -123,7 +126,9 @@ def main():
         value_loss_weight=args.value_loss_weight,
         entropy_weight=args.entropy_weight,
         learning_rate=args.lr,
-        max_to_keep=args.max_to_keep)
+        max_to_keep=args.max_to_keep,
+        temporal=args.use_lstm,
+        network_cls=FullyConvLSTM if args.use_lstm else FullyConv)
 
     runner = A2CRunner(
         envs=envs,
@@ -131,7 +136,8 @@ def main():
         train=args.train,
         summary_writer=summary_writer,
         discount=args.discount,
-        n_steps=args.steps_per_batch)
+        n_steps=args.steps_per_batch,
+        temporal=args.use_lstm)
 
     static_shape_channels = runner.preproc.get_input_channels()
     agent.build(static_shape_channels, resolution=args.res)

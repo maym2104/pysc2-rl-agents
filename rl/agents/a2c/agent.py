@@ -23,7 +23,8 @@ class A2CAgent():
                entropy_weight=1e-3,
                learning_rate=7e-4,
                max_gradient_norm=1.0,
-               max_to_keep=5):
+               max_to_keep=5,
+               temporal=False):
     self.sess = sess
     self.network_cls = network_cls
     self.network_data_format = network_data_format
@@ -33,6 +34,7 @@ class A2CAgent():
     self.max_gradient_norm = max_gradient_norm
     self.train_step = 0
     self.max_to_keep = max_to_keep
+    self.temporal = temporal
 
   def build(self, static_shape_channels, resolution, scope=None, reuse=None):
     #with tf.variable_scope(scope, reuse=reuse):
@@ -61,6 +63,14 @@ class A2CAgent():
                           'input_flat')
     available_actions = tf.placeholder(tf.float32, [None, ch['available_actions']],
                                        'input_available_actions')
+    if self.temporal:
+      hidden_state = tf.placeholder(tf.float32, [None, res, res, 96],
+                             'hidden_state')
+      cell_state = tf.placeholder(tf.float32, [None, res, res, 96],
+                             'cell_state')
+      state = [cell_state, hidden_state]
+    else:
+      state = None
     advs = tf.placeholder(tf.float32, [None], 'advs')
     returns = tf.placeholder(tf.float32, [None], 'returns')
     self.screen = screen
@@ -69,11 +79,19 @@ class A2CAgent():
     self.advs = advs
     self.returns = returns
     self.available_actions = available_actions
+    self.state = state
 
-    policy, value = self.network_cls(data_format=self.network_data_format).build(
+    if self.temporal:
+      policy, value, state_out = self.network_cls(data_format=self.network_data_format).build(
+        screen, minimap, flat, state)
+    else:
+      policy, value = self.network_cls(data_format=self.network_data_format).build(
         screen, minimap, flat)
+      state_out = None
+
     self.policy = policy
     self.value = value
+    self.state_out = state_out
 
     fn_id = tf.placeholder(tf.int32, [None], 'fn_id')
     arg_ids = {
@@ -131,7 +149,7 @@ class A2CAgent():
     feed_dict.update({v: actions[1][k] for k, v in self.actions[1].items()})
     return feed_dict
 
-  def train(self, obs, actions, returns, advs, summary=False):
+  def train(self, obs, actions, returns, advs, summary=False, states=None):
     """
     Args:
       obs: dict of preprocessed observation arrays, with num_batch elements
@@ -150,6 +168,10 @@ class A2CAgent():
         self.returns: returns,
         self.advs: advs})
 
+    if self.temporal:
+      feed_dict.update({self.state[0]: states[0],
+                        self.state[1]: states[1]})
+
     ops = [self.train_op, self.loss]
 
     if summary:
@@ -162,7 +184,7 @@ class A2CAgent():
     if summary:
       return (agent_step, res[1], res[-1])
 
-  def step(self, obs):
+  def step(self, obs, state=None):
     """
     Args:
       obs: dict of preprocessed observation arrays, with num_batch elements
@@ -173,12 +195,21 @@ class A2CAgent():
       values: array of shape [num_batch] containing value estimates.
     """
     feed_dict = self.get_obs_feed(obs)
+    if self.temporal:
+      feed_dict.update({self.state[0]: state[0],
+                        self.state[1]: state[1]})
+      return self.sess.run([self.samples, self.value, self.state_out], feed_dict=feed_dict)
+
     return self.sess.run([self.samples, self.value], feed_dict=feed_dict)
 
-  def get_value(self, obs):
+  def get_value(self, obs, state=None):
+    feed_dict = self.get_obs_feed(obs)
+    if self.temporal:
+      feed_dict.update({self.state[0]: state[0],
+                        self.state[1]: state[1]})
     return self.sess.run(
         self.value,
-        feed_dict=self.get_obs_feed(obs))
+        feed_dict=feed_dict)
 
   def init(self):
     self.sess.run(self.init_op)

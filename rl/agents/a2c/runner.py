@@ -17,7 +17,8 @@ class A2CRunner():
                summary_writer=None,
                train=True,
                n_steps=8,
-               discount=0.99):
+               discount=0.99,
+               temporal=False):
     """
     Args:
       agent: A2CAgent instance.
@@ -36,10 +37,13 @@ class A2CRunner():
     self.preproc = Preprocessor(self.envs.observation_spec()[0])
     self.episode_counter = 0
     self.cumulative_score = 0.0
+    self.temporal = temporal
 
   def reset(self):
     obs_raw = self.envs.reset()
     self.last_obs = self.preproc.preprocess_obs(obs_raw)
+    self.size = self.last_obs['screen'].shape[1:3]
+    self.last_state = [np.zeros((self.envs.n_envs, )+self.size+(96,)) for _ in range(2)]
 
   def get_mean_score(self):
     return self.cumulative_score / self.episode_counter
@@ -71,19 +75,29 @@ class A2CRunner():
     all_obs = []
     all_actions = []
     all_scores = []
+    all_states = []
 
     last_obs = self.last_obs
+    last_state = self.last_state
+    all_states.append(last_state)
 
     for n in range(self.n_steps):
-      actions, value_estimate = self.agent.step(last_obs)
+      if self.temporal:
+        actions, value_estimate, last_state = self.agent.step(last_obs, last_state)
+        for item in last_state:
+          item[dones[n-1, :].nonzero()] = 0.  # reset those that were the last step
+        all_states.append(last_state)
+      else:
+        actions, value_estimate = self.agent.step(last_obs)
+      #show(policy[1])
       actions = mask_unused_argument_samples(actions)
-      size = last_obs['screen'].shape[1:3]
+      #size = last_obs['screen'].shape[1:3]
 
       values[n, :] = value_estimate
       all_obs.append(last_obs)
       all_actions.append(actions)
 
-      pysc2_actions = actions_to_pysc2(actions, size)
+      pysc2_actions = actions_to_pysc2(actions, self.size)
       obs_raw = self.envs.step(pysc2_actions)
       last_obs = self.preproc.preprocess_obs(obs_raw)
       rewards[n, :] = [t.reward for t in obs_raw]
@@ -95,8 +109,9 @@ class A2CRunner():
           self.cumulative_score += score
 
     self.last_obs = last_obs
+    self.last_state = last_state
 
-    next_values = self.agent.get_value(last_obs)
+    next_values = self.agent.get_value(last_obs, last_state)
 
     returns, advs = compute_returns_advantages(
         rewards, dones, values, next_values, self.discount)
@@ -105,11 +120,14 @@ class A2CRunner():
     obs = flatten_first_dims_dict(stack_ndarray_dicts(all_obs))
     returns = flatten_first_dims(returns)
     advs = flatten_first_dims(advs)
+    all_states = all_states[:self.n_steps]
+    states = [np.stack(item) for item in zip(*all_states)]
+    states = [flatten_first_dims(item) for item in states]
 
     if self.train:
       return self.agent.train(
           obs, actions, returns, advs,
-          summary=train_summary)
+          summary=train_summary, states=states)
 
     return None
 
