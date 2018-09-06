@@ -23,7 +23,8 @@ class FullyConvLSTM(FullyConv):
     layer = rnn.Conv2DLSTMCell(
         input_shape=[32, 32, 75],
         output_channels=96,
-        kernel_shape=[3, 3],)
+        kernel_shape=[3, 3],
+        name='conv_2d_lstm')  # different versions of TensorFlow have different default names
     y, h = layer.apply(x, h)
     y = tf.nn.relu(y)
     y = self.from_nhwc(y)
