@@ -21,10 +21,11 @@ class FullyConvLSTM(FullyConv):
 
     # conv2dlstm operation
     layer = rnn.Conv2DLSTMCell(
+        name='conv_2d_lstm',
         input_shape=[32, 32, 75],
         output_channels=96,
-        kernel_shape=[3, 3],
-        name='conv_2d_lstm')  # different versions of TensorFlow have different default names
+        kernel_shape=[3, 3],)  # different versions of TensorFlow have different default names
+    layer._base_name = 'conv_2d_lstm'  # tf bug. does not take name we pass (arg is not forward to parent class)
     y, h = layer.apply(x, h)
     y = tf.nn.relu(y)
     y = self.from_nhwc(y)
